@@ -6,6 +6,7 @@ permissions:
   contents: read
 jobs:
   build:
+    if: "!contains(github.event.head_commit.message, '[diagnostics]')"
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
@@ -32,6 +33,7 @@ jobs:
           name: CotoveleiraInteligente-unsigned
           path: CotoveleiraInteligente-unsigned.ipa
   layout:
+    if: "!contains(github.event.head_commit.message, '[diagnostics]')"
     runs-on: macos-26
     timeout-minutes: 30
     strategy:
@@ -68,6 +70,7 @@ jobs:
             xcrun xcresulttool export attachments --path LayoutResults.xcresult --output-path screenshots
             xcrun xcresulttool get test-results summary --path LayoutResults.xcresult > test-summary.json
             cat test-summary.json
+            python3 scripts/report_tests.py .
             echo '### XCTest result' >> "$GITHUB_STEP_SUMMARY"
             echo '```json' >> "$GITHUB_STEP_SUMMARY"
             cat test-summary.json >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,26 @@
+name: Inspect saved XCTest results
+on:
+  push:
+    paths: ['.github/workflows/test-diagnostics.yml']
+  workflow_dispatch:
+    inputs:
+      run_id:
+        default: '43320133252'
+        required: true
+        type: string
+permissions:
+  actions: read
+  contents: read
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.run_id || '43320133252' }}
+          name: Layout-iPhone-SE-3
+          path: report
+      - name: Report exact saved test outcomes
+        run: python3 scripts/report_tests.py report
