@@ -68,6 +68,15 @@ jobs:
             xcrun xcresulttool export attachments --path LayoutResults.xcresult --output-path screenshots
             xcrun xcresulttool get test-results summary --path LayoutResults.xcresult > test-summary.json
             cat test-summary.json
+            echo '### XCTest result' >> "$GITHUB_STEP_SUMMARY"
+            echo '```json' >> "$GITHUB_STEP_SUMMARY"
+            cat test-summary.json >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            xcrun xcresulttool get test-results tests --path LayoutResults.xcresult > test-tree.json
+            echo '### Test details' >> "$GITHUB_STEP_SUMMARY"
+            echo '```json' >> "$GITHUB_STEP_SUMMARY"
+            cat test-tree.json >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
           fi
       - uses: actions/upload-artifact@v4
         if: always()
@@ -76,4 +85,5 @@ jobs:
           path: |
             screenshots/
             test-summary.json
+            test-tree.json
             LayoutResults.xcresult/
