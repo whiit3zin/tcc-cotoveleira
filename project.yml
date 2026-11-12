@@ -1,0 +1,21 @@
+name: CotoveleiraInteligente
+options:
+  bundleIdPrefix: br.edu.tcc
+settings:
+  base:
+    IPHONEOS_DEPLOYMENT_TARGET: '18.0'
+    SWIFT_VERSION: '5.0'
+    TARGETED_DEVICE_FAMILY: '1'
+targets:
+  CotoveleiraInteligente:
+    type: application
+    platform: iOS
+    sources: [Cotoveleira]
+    info:
+      path: Cotoveleira/Resources/Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: br.edu.tcc.cotoveleira
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGNING_ALLOWED: NO

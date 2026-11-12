@@ -1,0 +1,27 @@
+name: iOS IPA
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Xcode 26
+        run: xcodebuild -version | grep 'Xcode 26'
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate project
+        run: xcodegen generate
+      - name: Build for iPhone
+        run: xcodebuild -project CotoveleiraInteligente.xcodeproj -scheme CotoveleiraInteligente -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
+      - name: Package unsigned IPA
+        run: |
+          mkdir -p staging/Payload
+          cp -R build/Build/Products/Release-iphoneos/CotoveleiraInteligente.app staging/Payload/
+          cd staging
+          zip -qr ../CotoveleiraInteligente-unsigned.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CotoveleiraInteligente-unsigned
+          path: CotoveleiraInteligente-unsigned.ipa
