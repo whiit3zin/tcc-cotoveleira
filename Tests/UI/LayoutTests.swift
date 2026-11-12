@@ -28,6 +28,12 @@ final class LayoutTests: XCTestCase {
                 app.launchArguments = ["--ui-testing", "-sets", "2", "-repetitions", "2", "-restSeconds", "30", "-demoMode", "YES", "-theme", theme]
                 if largeText { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXL"] }
                 app.launch()
+                // Dismiss the first-launch privacy dialog before capturing the screen.
+                let alert = app.alerts.firstMatch
+                if alert.waitForExistence(timeout: 2) {
+                    if alert.buttons["Allow"].exists { alert.buttons["Allow"].tap() }
+                    else if alert.buttons["Permitir"].exists { alert.buttons["Permitir"].tap() }
+                }
                 let prefix = "\(theme)-\(largeText ? "acessibilidade" : "padrao")"
                 let bar = app.tabBars.firstMatch
                 XCTAssertTrue(bar.waitForExistence(timeout: 10))

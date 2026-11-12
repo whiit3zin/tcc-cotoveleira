@@ -13,16 +13,16 @@ import UIKit
     @Published private(set) var wasInterrupted = false
     var isRunning: Bool { phase == .active || phase == .paused || phase == .resting }
     @Published private(set) var startedAt: Date?
-    @Published var demoMode = UserDefaults.standard.object(forKey: "demoMode") as? Bool ?? true {
+    @Published var demoMode = (UserDefaults.standard.object(forKey: "demoMode") == nil ? true : UserDefaults.standard.bool(forKey: "demoMode")) {
         didSet { UserDefaults.standard.set(demoMode, forKey: "demoMode") }
     }
-    @Published var targetSets = UserDefaults.standard.object(forKey: "sets") as? Int ?? 3 {
+    @Published var targetSets = (UserDefaults.standard.object(forKey: "sets") == nil ? 3 : UserDefaults.standard.integer(forKey: "sets")) {
         didSet { UserDefaults.standard.set(targetSets, forKey: "sets") }
     }
-    @Published var targetRepetitions = UserDefaults.standard.object(forKey: "repetitions") as? Int ?? 15 {
+    @Published var targetRepetitions = (UserDefaults.standard.object(forKey: "repetitions") == nil ? 15 : UserDefaults.standard.integer(forKey: "repetitions")) {
         didSet { UserDefaults.standard.set(targetRepetitions, forKey: "repetitions") }
     }
-    @Published var restSeconds = UserDefaults.standard.object(forKey: "restSeconds") as? Int ?? 60 {
+    @Published var restSeconds = (UserDefaults.standard.object(forKey: "restSeconds") == nil ? 60 : UserDefaults.standard.integer(forKey: "restSeconds")) {
         didSet { UserDefaults.standard.set(restSeconds, forKey: "restSeconds") }
     }
     private var timer: Task<Void, Never>?
