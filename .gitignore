@@ -1,0 +1,5 @@
+*.xcodeproj/
+build/
+*.xcresult/
+staging/
+*.ipa

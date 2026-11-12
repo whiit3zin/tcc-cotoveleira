@@ -2,6 +2,8 @@ name: iOS IPA
 on:
   push:
   workflow_dispatch:
+permissions:
+  contents: read
 jobs:
   build:
     runs-on: macos-26
@@ -11,10 +13,14 @@ jobs:
         run: xcodebuild -version | grep 'Xcode 26'
       - name: Install XcodeGen
         run: brew install xcodegen
-      - name: Generate project
-        run: xcodegen generate
+      - name: Generate project without overwriting the plist
+        run: |
+          xcodegen generate
+          git diff --exit-code -- Cotoveleira/Resources/Info.plist
       - name: Build for iPhone
         run: xcodebuild -project CotoveleiraInteligente.xcodeproj -scheme CotoveleiraInteligente -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
+      - name: Verify packaged metadata
+        run: python3 scripts/check_bundle.py build/Build/Products/Release-iphoneos/CotoveleiraInteligente.app
       - name: Package unsigned IPA
         run: |
           mkdir -p staging/Payload
@@ -25,3 +31,49 @@ jobs:
         with:
           name: CotoveleiraInteligente-unsigned
           path: CotoveleiraInteligente-unsigned.ipa
+  layout:
+    runs-on: macos-26
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - model: iPhone-16
+            type: com.apple.CoreSimulator.SimDeviceType.iPhone-16
+          - model: iPhone-SE-3
+            type: com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation
+          - model: iPhone-16-Pro-Max
+            type: com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro-Max
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen
+      - run: xcodegen generate
+      - name: Create iOS 26 simulator
+        id: simulator
+        env:
+          DEVICE_TYPE: ${{ matrix.type }}
+        run: |
+          runtime=$(xcrun simctl list runtimes available -j | python3 -c 'import json,sys; print(next(r["identifier"] for r in json.load(sys.stdin)["runtimes"] if r["identifier"].startswith("com.apple.CoreSimulator.SimRuntime.iOS-26")))')
+          device=$(xcrun simctl create LayoutValidation "$DEVICE_TYPE" "$runtime")
+          echo "id=$device" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$device"
+          xcrun simctl bootstatus "$device" -b
+          xcrun simctl status_bar "$device" override --time '9:41' --dataNetwork wifi --wifiMode active --wifiBars 3 --batteryState charged --batteryLevel 100
+      - name: Run state, persistence and layout tests
+        run: xcodebuild -project CotoveleiraInteligente.xcodeproj -scheme CotoveleiraInteligente -configuration Debug -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}' -derivedDataPath build -resultBundlePath LayoutResults.xcresult -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO test
+      - name: Export real simulator screenshots
+        if: always()
+        run: |
+          if [ -d LayoutResults.xcresult ]; then
+            xcrun xcresulttool export attachments --path LayoutResults.xcresult --output-path screenshots
+            xcrun xcresulttool get test-results summary --path LayoutResults.xcresult > test-summary.json
+            cat test-summary.json
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Layout-${{ matrix.model }}
+          path: |
+            screenshots/
+            test-summary.json
+            LayoutResults.xcresult/

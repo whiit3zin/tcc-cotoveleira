@@ -6,6 +6,14 @@ import SwiftData
     @StateObject private var bluetooth = BluetoothManager()
     @AppStorage("theme") private var theme = AppTheme.system.rawValue
 
+    private var isUITesting: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("--ui-testing")
+        #else
+        false
+        #endif
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView()
@@ -16,6 +24,6 @@ import SwiftData
                     if let state { workout.applyDevice(repetition: state.repetition, set: state.set, phase: state.phase) }
                 }
         }
-        .modelContainer(for: WorkoutSession.self)
+        .modelContainer(for: WorkoutSession.self, inMemory: isUITesting)
     }
 }

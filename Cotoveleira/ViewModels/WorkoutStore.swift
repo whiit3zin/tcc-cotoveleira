@@ -9,6 +9,9 @@ import UIKit
     @Published private(set) var set = 1
     @Published private(set) var remaining = 0
     @Published private(set) var total = 0
+    @Published private(set) var restCompleted = false
+    @Published private(set) var wasInterrupted = false
+    var isRunning: Bool { phase == .active || phase == .paused || phase == .resting }
     @Published private(set) var startedAt: Date?
     @Published var demoMode = UserDefaults.standard.object(forKey: "demoMode") as? Bool ?? true {
         didSet { UserDefaults.standard.set(demoMode, forKey: "demoMode") }
@@ -32,6 +35,7 @@ import UIKit
         guard phase == .idle || phase == .completed else { return }
         stopTimer()
         repetition = 0; set = 1; total = 0; saved = false
+        restCompleted = false; wasInterrupted = false
         startedAt = .now; phase = .active
         startDemoTicker()
     }
@@ -47,13 +51,14 @@ import UIKit
         if repetition >= max(1, targetRepetitions) {
             stopTimer()
             if set >= targetSets { phase = .completed }
-            else { phase = .resting; remaining = restSeconds; startRestTicker() }
+            else { restCompleted = false; phase = .resting; remaining = restSeconds; startRestTicker() }
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
         }
     }
 
     func skipRest() {
         guard phase == .resting else { return }
+        restCompleted = true
         stopTimer(); set += 1; repetition = 0; remaining = 0; phase = .active
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         startDemoTicker()
@@ -64,7 +69,9 @@ import UIKit
         stopTimer()
         if !saved, let startedAt {
             let duration = max(0, Int(Date.now.timeIntervalSince(startedAt)))
-            context.insert(WorkoutSession(startedAt: startedAt, duration: duration, completedSets: phase == .completed ? set : max(0, set - 1), totalRepetitions: total, isDemo: demoMode))
+            wasInterrupted = phase != .completed
+            let completedSets = min(targetSets, max(0, set - 1) + (repetition >= targetRepetitions ? 1 : 0))
+            context.insert(WorkoutSession(startedAt: startedAt, duration: duration, completedSets: completedSets, totalRepetitions: total, isDemo: demoMode, wasInterrupted: wasInterrupted))
             try? context.save()
             saved = true
         }
@@ -81,6 +88,10 @@ import UIKit
 
     private func startDemoTicker() {
         guard demoMode else { return }
+        #if DEBUG
+        // UI tests advance repetitions by tapping; production cadence stays two seconds.
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing") { return }
+        #endif
         timer = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(2))

@@ -30,7 +30,8 @@ struct Card<Content: View>: View {
     init(@ViewBuilder content: () -> Content) { self.content = content() }
     @Environment(\.colorScheme) private var scheme
     var body: some View {
-        content.padding(20).frame(maxWidth: .infinity, alignment: .leading)
+        VStack(alignment: .leading, spacing: 16) { content }
+            .padding(20).frame(maxWidth: .infinity, alignment: .leading)
             .background(Palette.surface(scheme == .dark), in: RoundedRectangle(cornerRadius: 24))
     }
 }
