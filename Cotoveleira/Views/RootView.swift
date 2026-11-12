@@ -25,8 +25,9 @@ struct Screen<Content: View>: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) { content }
                     .frame(maxWidth: 560).frame(maxWidth: .infinity)
-                    .padding(.horizontal, 20).padding(.vertical, 16)
+                    .padding(.horizontal, 20).padding(.top, 16)
             }
+            .safeAreaPadding(.bottom, 24)
             .background(Palette.background(scheme == .dark).ignoresSafeArea())
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.large)

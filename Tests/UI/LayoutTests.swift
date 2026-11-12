@@ -16,11 +16,17 @@ final class LayoutTests: XCTestCase {
         attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
     }
     private func reveal(_ element: XCUIElement) {
-        for _ in 0..<6 {
-            if element.isHittable { return }
-            app.swipeUp()
+        let bar = app.tabBars.firstMatch
+        for _ in 0..<8 {
+            let top = app.navigationBars.firstMatch.frame.maxY
+            let bottom = bar.frame.minY - 8
+            let frame = element.frame
+            if element.isHittable && frame.minY >= top && frame.maxY <= bottom { return }
+            if frame.minY < top && element.exists { app.swipeDown() }
+            else { app.swipeUp() }
         }
         XCTAssertTrue(element.isHittable)
+        XCTAssertLessThanOrEqual(element.frame.maxY, bar.frame.minY - 8)
     }
     func testLayoutMatrix() throws {
         for theme in ["Claro", "Escuro"] {
