@@ -3,3 +3,4 @@ build/
 *.xcresult/
 staging/
 *.ipa
+__pycache__/

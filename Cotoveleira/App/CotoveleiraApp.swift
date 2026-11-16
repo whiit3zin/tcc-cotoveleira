@@ -20,7 +20,23 @@ import SwiftData
                 .environmentObject(workout)
                 .environmentObject(bluetooth)
                 .preferredColorScheme(AppTheme(rawValue: theme)?.colorScheme)
+                .onReceive(workout.$phase) { phase in
+                    LiveWorkoutService.shared.update(repetitions: workout.repetition, set: workout.set, phase: phase, demo: workout.demoMode)
+                }
+                .onReceive(workout.$repetition) { repetition in
+                    LiveWorkoutService.shared.update(repetitions: repetition, set: workout.set, phase: workout.phase, demo: workout.demoMode)
+                }
+                .onChange(of: workout.demoMode) { _, demo in
+                    bluetooth.demoMode = demo
+                }
                 .onReceive(bluetooth.$latestState) { state in
+                    if bluetooth.configuration.count == 5 && !workout.demoMode {
+                        workout.targetSets = bluetooth.configuration[0]
+                        workout.targetRepetitions = bluetooth.configuration[1]
+                        workout.restSeconds = bluetooth.configuration[2]
+                        workout.syncRest(bluetooth.configuration[3])
+                        workout.syncInterruption(bluetooth.configuration[4] & 1 != 0)
+                    }
                     if let state { workout.applyDevice(repetition: state.repetition, set: state.set, phase: state.phase) }
                 }
         }

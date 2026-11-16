@@ -13,13 +13,16 @@ import UIKit
     @Published private(set) var wasInterrupted = false
     var isRunning: Bool { phase == .active || phase == .paused || phase == .resting }
     @Published private(set) var startedAt: Date?
-    @Published var demoMode = (UserDefaults.standard.object(forKey: "demoMode") == nil ? true : UserDefaults.standard.bool(forKey: "demoMode")) {
-        didSet { UserDefaults.standard.set(demoMode, forKey: "demoMode") }
+    @Published var demoMode = false {
+        didSet { stopTimer(); phase = .idle; repetition = 0; total = 0; startedAt = nil }
     }
+    @Published var demoPowered = true
+    func simulateError() { guard demoMode && demoPowered else { return }; HapticService.shared.play(.error) }
+
     @Published var targetSets = (UserDefaults.standard.object(forKey: "sets") == nil ? 3 : UserDefaults.standard.integer(forKey: "sets")) {
         didSet { UserDefaults.standard.set(targetSets, forKey: "sets") }
     }
-    @Published var targetRepetitions = (UserDefaults.standard.object(forKey: "repetitions") == nil ? 15 : UserDefaults.standard.integer(forKey: "repetitions")) {
+    @Published var targetRepetitions = (UserDefaults.standard.object(forKey: "repetitions") == nil ? 12 : UserDefaults.standard.integer(forKey: "repetitions")) {
         didSet { UserDefaults.standard.set(targetRepetitions, forKey: "repetitions") }
     }
     @Published var restSeconds = (UserDefaults.standard.object(forKey: "restSeconds") == nil ? 60 : UserDefaults.standard.integer(forKey: "restSeconds")) {
@@ -27,12 +30,21 @@ import UIKit
     }
     private var timer: Task<Void, Never>?
     private var saved = false
+    private var deviceInterrupted = false
+
+    func syncInterruption(_ interrupted: Bool) { deviceInterrupted = interrupted }
+
+    init() {
+        #if DEBUG
+        demoMode = ProcessInfo.processInfo.arguments.contains("--ui-testing")
+        #endif
+    }
 
     var progress: Double { Double(repetition) / Double(max(1, targetRepetitions)) }
     var clock: String { String(format: "%02d:%02d", remaining / 60, remaining % 60) }
 
     func start() {
-        guard phase == .idle || phase == .completed else { return }
+        guard demoMode, demoPowered, phase == .idle || phase == .completed else { return }
         stopTimer()
         repetition = 0; set = 1; total = 0; saved = false
         restCompleted = false; wasInterrupted = false
@@ -41,26 +53,28 @@ import UIKit
     }
 
     func pauseOrResume() {
+        guard demoMode else { return }
         if phase == .active { phase = .paused; stopTimer() }
         else if phase == .paused { phase = .active; startDemoTicker() }
     }
 
     func addRepetition() {
-        guard phase == .active else { return }
+        guard demoMode, demoPowered, phase == .active else { return }
         repetition += 1; total += 1
         if repetition >= max(1, targetRepetitions) {
             stopTimer()
             if set >= targetSets { phase = .completed }
             else { restCompleted = false; phase = .resting; remaining = restSeconds; startRestTicker() }
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            HapticService.shared.play(.series)
+            if phase == .completed { HapticService.shared.play(.success) }
         }
     }
 
     func skipRest() {
-        guard phase == .resting else { return }
+        guard demoMode, phase == .resting else { return }
         restCompleted = true
         stopTimer(); set += 1; repetition = 0; remaining = 0; phase = .active
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        HapticService.shared.play(.rest)
         startDemoTicker()
     }
 
@@ -69,7 +83,7 @@ import UIKit
         stopTimer()
         if !saved, let startedAt {
             let duration = max(0, Int(Date.now.timeIntervalSince(startedAt)))
-            wasInterrupted = phase != .completed
+            wasInterrupted = phase != .completed || (!demoMode && deviceInterrupted)
             let completedSets = min(targetSets, max(0, set - 1) + (repetition >= targetRepetitions ? 1 : 0))
             context.insert(WorkoutSession(startedAt: startedAt, duration: duration, completedSets: completedSets, totalRepetitions: total, isDemo: demoMode, wasInterrupted: wasInterrupted))
             try? context.save()
@@ -80,11 +94,17 @@ import UIKit
 
     func applyDevice(repetition: Int, set: Int, phase: WorkoutPhase) {
         guard !demoMode else { return }
+        if (phase == .active || phase == .paused || phase == .resting) && (self.phase == .idle || self.phase == .completed) {
+            startedAt = .now; saved = false; wasInterrupted = false
+        }
+        if phase == .idle { stopTimer(); startedAt = nil }
         self.repetition = min(repetition, targetRepetitions)
         self.set = min(max(1, set), targetSets)
         self.phase = phase
         self.total = (self.set - 1) * targetRepetitions + self.repetition
     }
+
+    func syncRest(_ seconds: Int) { if !demoMode { remaining = seconds } }
 
     private func startDemoTicker() {
         guard demoMode else { return }

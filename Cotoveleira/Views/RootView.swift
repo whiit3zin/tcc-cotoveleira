@@ -62,8 +62,8 @@ struct TrainingView: View {
                 }
                 .buttonStyle(.borderedProminent).controlSize(.large)
                 .accessibilityIdentifier("workout.primary")
-                .disabled(!workout.demoMode && bluetooth.status != "Conectado")
-                if !workout.demoMode && bluetooth.status != "Conectado" {
+                .disabled(!workout.demoMode && (!bluetooth.ready || bluetooth.powered != true))
+                if !workout.demoMode && (!bluetooth.ready || bluetooth.powered != true) {
                     Text("Conecte a cotoveleira na aba Dispositivo para iniciar ou retomar o treino.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
@@ -82,7 +82,7 @@ struct TrainingView: View {
             if workout.isRunning {
                 Button("Finalizar e salvar treino", role: .destructive) {
                     if !workout.demoMode { bluetooth.send(4) }
-                    workout.finish(in: context)
+                    if workout.demoMode { workout.finish(in: context) }
                 }
                 .accessibilityIdentifier("workout.finish")
                 .frame(maxWidth: .infinity).padding(.vertical, 4)
@@ -112,7 +112,7 @@ struct TrainingView: View {
     private func primaryAction() {
         switch workout.phase {
         case .idle, .completed:
-            workout.start()
+            if workout.demoMode { workout.start() }
             if !workout.demoMode {
                 bluetooth.send(6, value: UInt16(workout.targetSets))
                 bluetooth.send(7, value: UInt16(workout.targetRepetitions))
@@ -120,10 +120,10 @@ struct TrainingView: View {
                 bluetooth.send(1)
             }
         case .active:
-            workout.pauseOrResume()
+            if workout.demoMode { workout.pauseOrResume() }
             if !workout.demoMode { bluetooth.send(2) }
         case .paused:
-            workout.pauseOrResume()
+            if workout.demoMode { workout.pauseOrResume() }
             if !workout.demoMode { bluetooth.send(3) }
         case .resting: break
         }

@@ -73,8 +73,12 @@ final class LayoutTests: XCTestCase {
                 screenshot(prefix + "-historico-parcial")
                 bar.buttons["Dispositivo"].tap(); screenshot(prefix + "-dispositivo-demo")
                 bar.buttons["Ajustes"].tap(); screenshot(prefix + "-ajustes")
+                let version = app.staticTexts["settings.version"]
+                reveal(version)
+                for _ in 0..<5 { version.tap() }
                 let toggle = app.switches["Modo demonstração"]
                 reveal(toggle); toggle.tap()
+                app.buttons["Concluído"].tap()
                 bar.buttons["Dispositivo"].tap(); screenshot(prefix + "-dispositivo-sem-conexao")
                 app.terminate()
             }

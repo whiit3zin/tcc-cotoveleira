@@ -10,7 +10,9 @@ targets:
   CotoveleiraInteligente:
     type: application
     platform: iOS
-    sources: [Cotoveleira]
+    sources: [Cotoveleira, Shared]
+    dependencies:
+      - target: WorkoutWidget
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: br.edu.tcc.cotoveleira
@@ -19,6 +21,18 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         CODE_SIGNING_ALLOWED: NO
 
+  WorkoutWidget:
+    type: app-extension
+    platform: iOS
+    sources: [WorkoutWidget, Shared]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: br.edu.tcc.cotoveleira.activity
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: WorkoutWidget/Info.plist
+        CODE_SIGNING_ALLOWED: NO
+        SKIP_INSTALL: YES
+        APPLICATION_EXTENSION_API_ONLY: YES
   CotoveleiraTests:
     type: bundle.unit-test
     platform: iOS
