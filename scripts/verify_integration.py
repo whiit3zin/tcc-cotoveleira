@@ -36,6 +36,15 @@ class IntegrationContract(unittest.TestCase):
         self.assertTrue(info['NSSupportsLiveActivities'])
         widget = plistlib.loads((ROOT / 'WorkoutWidget/Info.plist').read_bytes())
         self.assertEqual(widget['NSExtension']['NSExtensionPointIdentifier'], 'com.apple.widgetkit-extension')
+        for metadata in (info, widget):
+            self.assertEqual(metadata['CFBundleVersion'], '$(CURRENT_PROJECT_VERSION)')
+            self.assertEqual(metadata['CFBundleShortVersionString'], '$(MARKETING_VERSION)')
+        self.assertEqual(widget['CFBundlePackageType'], 'XPC!')
+        self.assertEqual(widget['CFBundleExecutable'], '$(EXECUTABLE_NAME)')
+        self.assertEqual(widget['CFBundleIdentifier'], '$(PRODUCT_BUNDLE_IDENTIFIER)')
+        project = (ROOT / 'project.yml').read_text(encoding='utf-8')
+        self.assertEqual(re.findall(r"CURRENT_PROJECT_VERSION: '([^']+)'", project), ['3'])
+        self.assertEqual(re.findall(r"MARKETING_VERSION: '([^']+)'", project), ['1.0.0'])
 
 if __name__ == '__main__':
     unittest.main()

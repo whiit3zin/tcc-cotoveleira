@@ -6,6 +6,8 @@ settings:
     IPHONEOS_DEPLOYMENT_TARGET: '18.0'
     SWIFT_VERSION: '5.0'
     TARGETED_DEVICE_FAMILY: '1'
+    CURRENT_PROJECT_VERSION: '3'
+    MARKETING_VERSION: '1.0.0'
 targets:
   CotoveleiraInteligente:
     type: application
@@ -13,13 +15,13 @@ targets:
     sources: [Cotoveleira, Shared]
     dependencies:
       - target: WorkoutWidget
+        embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: br.edu.tcc.cotoveleira
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_FILE: Cotoveleira/Resources/Info.plist
         GENERATE_INFOPLIST_FILE: NO
-        CODE_SIGNING_ALLOWED: NO
 
   WorkoutWidget:
     type: app-extension
@@ -28,9 +30,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: br.edu.tcc.cotoveleira.activity
-        GENERATE_INFOPLIST_FILE: YES
+        GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: WorkoutWidget/Info.plist
-        CODE_SIGNING_ALLOWED: NO
         SKIP_INSTALL: YES
         APPLICATION_EXTENSION_API_ONLY: YES
   CotoveleiraTests:

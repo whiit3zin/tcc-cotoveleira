@@ -17,7 +17,11 @@ jobs:
       - name: Generate project without overwriting the plist
         run: |
           xcodegen generate
-          git diff --exit-code -- Cotoveleira/Resources/Info.plist
+          git diff --exit-code -- Cotoveleira/Resources/Info.plist WorkoutWidget/Info.plist
+      - name: Test bundle validator and source contracts
+        run: |
+          python3 -m unittest discover -s scripts -p 'test_*.py'
+          python3 scripts/verify_integration.py
       - name: Build for iPhone
         run: xcodebuild -project CotoveleiraInteligente.xcodeproj -scheme CotoveleiraInteligente -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
       - name: Verify packaged metadata
@@ -28,6 +32,8 @@ jobs:
           cp -R build/Build/Products/Release-iphoneos/CotoveleiraInteligente.app staging/Payload/
           cd staging
           zip -qr ../CotoveleiraInteligente-unsigned.ipa Payload
+      - name: Verify metadata and structure inside the IPA
+        run: python3 scripts/check_bundle.py CotoveleiraInteligente-unsigned.ipa
       - uses: actions/upload-artifact@v4
         with:
           name: CotoveleiraInteligente-unsigned

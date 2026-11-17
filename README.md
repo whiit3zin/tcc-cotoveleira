@@ -1,5 +1,7 @@
 # Cotoveleira Inteligente Bluetooth
 
+Para gerar e conferir o IPA com o widget preservado, consulte [metadados e instalação pelo Sideloadly](docs/ipa-sideloadly.md).
+
 App SwiftUI iOS 18+ e ESP32 Arduino 3.x. Referência exclusiva de firmware: `CotoveleiraESP32-Serial.ino`. O ESP32 processa o sensor e valida repetições; iPhone cuida da interface, histórico SwiftData e Core Haptics. Temas Sistema/Claro/Escuro e identidade visual preservados.
 
 ## Hardware e algoritmo
