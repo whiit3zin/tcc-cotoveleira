@@ -89,6 +89,7 @@ struct SettingsView: View {
                 }
                 Section("Feedback") {
                     Toggle("Feedback háptico", isOn: $haptics)
+                        .onChange(of: haptics) { _, enabled in HapticService.shared.enabled = enabled }
                     Button("Permitir notificações do treino") { HapticService.shared.requestNotifications() }
                 }
                 Section("Treino") {

@@ -20,6 +20,7 @@ import SwiftData
                 .environmentObject(workout)
                 .environmentObject(bluetooth)
                 .preferredColorScheme(AppTheme(rawValue: theme)?.colorScheme)
+                .task { HapticService.shared.prepare() }
                 .onReceive(workout.$phase) { phase in
                     LiveWorkoutService.shared.update(repetitions: workout.repetition, set: workout.set, phase: phase, demo: workout.demoMode)
                 }

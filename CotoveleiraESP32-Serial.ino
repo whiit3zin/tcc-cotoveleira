@@ -284,6 +284,8 @@ void repetitionCorrect(uint32_t now) {
   hasValidRep = true;
   stateDirty = true;
   Serial.printf("[FLEX] CERTO - serie %u rep %u\n", currentSet, repetitions);
+  // Includes the final repetition; iOS coalesces 5 -> 2 -> 4 by priority.
+  emitEvent(5, 0);
   if (repetitions >= targetReps) {
     emitEvent(2, 0);
     if (currentSet >= targetSets) { phase = COMPLETED; emitEvent(4, 0); }

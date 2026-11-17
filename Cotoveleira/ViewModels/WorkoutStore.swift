@@ -17,7 +17,7 @@ import UIKit
         didSet { stopTimer(); phase = .idle; repetition = 0; total = 0; startedAt = nil }
     }
     @Published var demoPowered = true
-    func simulateError() { guard demoMode && demoPowered else { return }; HapticService.shared.play(.error) }
+    func simulateError() { guard demoMode && demoPowered, phase == .active else { return }; HapticService.shared.play(.error) }
 
     @Published var targetSets = (UserDefaults.standard.object(forKey: "sets") == nil ? 3 : UserDefaults.standard.integer(forKey: "sets")) {
         didSet { UserDefaults.standard.set(targetSets, forKey: "sets") }
@@ -54,7 +54,7 @@ import UIKit
 
     func pauseOrResume() {
         guard demoMode else { return }
-        if phase == .active { phase = .paused; stopTimer() }
+        if phase == .active { phase = .paused; stopTimer(); HapticService.shared.cancel() }
         else if phase == .paused { phase = .active; startDemoTicker() }
     }
 
@@ -65,9 +65,8 @@ import UIKit
             stopTimer()
             if set >= targetSets { phase = .completed }
             else { restCompleted = false; phase = .resting; remaining = restSeconds; startRestTicker() }
-            HapticService.shared.play(.series)
-            if phase == .completed { HapticService.shared.play(.success) }
-        }
+            HapticService.shared.play(phase == .completed ? .success : .series)
+        } else { HapticService.shared.play(.correct) }
     }
 
     func skipRest() {
@@ -80,6 +79,7 @@ import UIKit
 
     func finish(in context: ModelContext) {
         guard phase != .idle else { return }
+        if phase != .completed { HapticService.shared.cancel() }
         stopTimer()
         if !saved, let startedAt {
             let duration = max(0, Int(Date.now.timeIntervalSince(startedAt)))

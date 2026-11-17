@@ -3,6 +3,7 @@ import Charts
 import UIKit
 
 struct EngineeringView: View {
+    @ObservedObject private var haptics = HapticService.shared
     @EnvironmentObject private var bluetooth: BluetoothManager
     @EnvironmentObject private var workout: WorkoutStore
     @Environment(\.dismiss) private var dismiss
@@ -77,8 +78,18 @@ struct EngineeringView: View {
                         }
                     }
                     Section("Testes hápticos") {
+                        LabeledContent("Mecanismo", value: haptics.engineStatus)
                         ForEach(HapticService.Pattern.allCases, id: \.self) { pattern in
-                            Button(pattern.rawValue) { HapticService.shared.play(pattern) }
+                            Button(pattern.title) { haptics.play(pattern) }
+                        }
+                        Button("Parar teste háptico") { haptics.cancel() }
+                        Text("Testes não alteram o treino. Use o app em primeiro plano e habilite Feedback háptico em Ajustes.").font(.footnote)
+                    }
+                    Section("Diagnóstico háptico") {
+                        Button("Limpar diagnóstico háptico") { haptics.clearDiagnostics() }
+                        Button("Copiar diagnóstico háptico") { UIPasteboard.general.string = haptics.diagnostics.joined(separator: "\n") }
+                        ForEach(Array(haptics.diagnostics.suffix(200).enumerated()), id: \.offset) { _, entry in
+                            Text(entry).font(.caption.monospaced())
                         }
                     }
                     Section("Registros") {

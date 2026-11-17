@@ -20,7 +20,7 @@ Preservados: 40 amostras, média dos 20 valores centrais, EMA 0,15, zona morta 3
 
 Conecte na aba Dispositivo, ligue virtualmente e inicie treino. Standby suspende sensor, contagem e diagnóstico; BLE permanece e bateria atualiza em 60 s (5 s ligado). Não corta energia elétrica. Finalize treino antes de usar o controle de standby do app. Firmware continua autônomo desconectado. Na reconexão o app recebe contagem, configuração e descanso; horário inicial reconstruído é o momento observado pelo app. [Contrato GATT](GATT.md).
 
-Repetição correta é silenciosa; erro forte; série três impactos com 150 ms; descanso dois curtos; treino padrão distinto de sucesso. Serviço central agenda padrões sem sobreposição. Ajustes inclui preferência persistente e permissão opcional para notificações.
+Repetição correta gera um pulso forte; erro dois pulsos separados por 160 ms; série três pulsos separados por 200 ms; próxima série dois pulsos separados por 80 ms; treino cinco pulsos até 950 ms. Core Haptics usa intensidade/nitidez 1 nos eventos de treino, com fallback UIKit heavy/rigid. Eventos de conclusão têm prioridade e substituem os anteriores, com janela de coordenação de 40 ms. Ajustes inclui preferência persistente e permissão opcional para notificações. [Implementação e validação háptica](docs/haptic-feedback.md).
 
 ## Engenharia
 

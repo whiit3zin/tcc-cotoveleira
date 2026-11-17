@@ -1,8 +1,9 @@
 import Foundation
+import Combine
 import CoreBluetooth
 
 // See GATT.md. All multibyte integers are little endian.
-final class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
+@MainActor final class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     static let serviceID = CBUUID(string: "4F1B0001-274C-4F4D-8D63-7A7F0C010001")
     static let stateID = CBUUID(string: "4F1B0002-274C-4F4D-8D63-7A7F0C010001")
     static let commandID = CBUUID(string: "4F1B0003-274C-4F4D-8D63-7A7F0C010001")
@@ -21,15 +22,21 @@ final class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelega
     @Published private(set) var maximum: Int?
     @Published private(set) var frequency: Double?
     @Published private(set) var configuration: [Int] = []
-    var demoMode = false
+    var demoMode = false {
+        didSet { if oldValue != demoMode { feedback.reset(); HapticService.shared.cancel() } }
+    }
     var wantsDiagnostics = false
-    private var sequence: UInt32?
+    private lazy var feedback = WorkoutFeedbackCoordinator(
+        output: { HapticService.shared.play($0) },
+        log: { [weak self] in self?.log($0) }
+    )
     private var writes: [Data] = []
     private var writing = false
     func clearDiagnostics() { samples = []; events = []; minimum = nil; maximum = nil; frequency = nil }
     func resetExtrema() { minimum = nil; maximum = nil }
     func diagnostics(_ enabled: Bool) { wantsDiagnostics = enabled; send(10, value: enabled ? 1 : 0) }
     func log(_ message: String) {
+        NSLog("[BLE] %@", message)
         events.append("\(Date.now.formatted(date: .omitted, time: .standard)) \(message)")
         if events.count > 200 { events.removeFirst(events.count - 200) }
     }
@@ -47,6 +54,8 @@ final class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelega
 
     func centralManager(_ central: CBCentralManager, willRestoreState dict: [String: Any]) {
         if let restored = (dict[CBCentralManagerRestoredStatePeripheralsKey] as? [CBPeripheral])?.first {
+            feedback.reset()
+            log("Restaurando conexão BLE e inscrições")
             peripheral = restored; restored.delegate = self
             if restored.state == .connected { restored.discoverServices([Self.serviceID]) }
             else { central.connect(restored) }
@@ -54,7 +63,8 @@ final class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelega
     }
     private func clearConnection() {
         ready = false; powered = nil; battery = nil; command = nil; latestState = nil
-        sequence = nil; writes = []; writing = false; diagnostic = []; lastUpdate = nil; samples = []
+        feedback.reset(); HapticService.shared.cancel()
+        writes = []; writing = false; diagnostic = []; lastUpdate = nil; samples = []
     }
     func peripheral(_ peripheral: CBPeripheral, didReadRSSI RSSI: NSNumber, error: Error?) {
         if error == nil { rssi = RSSI.intValue }
@@ -82,6 +92,9 @@ final class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelega
 
     func send(_ code: UInt8, value: UInt16 = 0) {
         guard !demoMode, command != nil, peripheral?.state == .connected else { return }
+        if code == 2 || code == 4 || (code == 9 && value == 0) {
+            feedback.suspend(); HapticService.shared.cancel()
+        } else if code == 1 || code == 3 || code == 5 { feedback.resume(); HapticService.shared.prepare() }
         writes.append(Data([1, code, UInt8(value & 255), UInt8(value >> 8)])); drain()
     }
 
@@ -96,11 +109,16 @@ final class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelega
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+        self.peripheral = peripheral
+        feedback.reset()
+        log("Conexão BLE estabelecida; descobrindo serviços e reinscrevendo notificações")
+        HapticService.shared.prepare()
         status = "Conectado"; peripheral.delegate = self
         peripheral.discoverServices([Self.serviceID])
     }
 
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
+        clearConnection()
         status = "Erro de conexão"; self.peripheral = nil
     }
 
@@ -124,7 +142,10 @@ final class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelega
             case Self.stateID: peripheral.setNotifyValue(true, for: characteristic); peripheral.readValue(for: characteristic)
             case Self.commandID: command = characteristic
             case Self.powerID: peripheral.readValue(for: characteristic); peripheral.setNotifyValue(true, for: characteristic)
-            case Self.eventID, Self.diagnosticID: peripheral.setNotifyValue(true, for: characteristic)
+            case Self.eventID:
+                log("Característica de eventos encontrada; solicitando notificações")
+                peripheral.setNotifyValue(true, for: characteristic)
+            case Self.diagnosticID: peripheral.setNotifyValue(true, for: characteristic)
             case Self.batteryID: peripheral.readValue(for: characteristic); peripheral.setNotifyValue(true, for: characteristic)
             default: break
             }
@@ -133,19 +154,22 @@ final class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelega
         if ready { send(10, value: wantsDiagnostics ? 1 : 0) }
     }
 
+    func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
+        if let error { log("Falha na inscrição \(characteristic.uuid): \(error.localizedDescription)") }
+        else { log("Notificações \(characteristic.uuid): \(characteristic.isNotifying ? "habilitadas" : "desabilitadas")") }
+    }
+
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
-        guard error == nil, let bytes = characteristic.value else { return }
+        guard self.peripheral?.identifier == peripheral.identifier else { return }
+        if let error { log("Falha BLE \(characteristic.uuid): \(error.localizedDescription)"); return }
+        guard let bytes = characteristic.value else { return }
         if characteristic.uuid == Self.powerID {
-            if bytes.count == 1, bytes[0] <= 1 { powered = bytes[0] == 1 }
+            if bytes.count == 1, bytes[0] <= 1 {
+                powered = bytes[0] == 1
+                if powered == false { feedback.suspend(); HapticService.shared.cancel() }
+            }
         } else if characteristic.uuid == Self.eventID {
-            guard bytes.count == 7, bytes[0] == 1, (1...4).contains(bytes[1]) else { return }
-            let n = UInt32(bytes[3]) | UInt32(bytes[4]) << 8 | UInt32(bytes[5]) << 16 | UInt32(bytes[6]) << 24
-            if let sequence, Int32(bitPattern: n &- sequence) <= 0 { return }
-            sequence = n
-            log("Evento \(bytes[1]); motivo \(bytes[2]); sequência \(n)")
-            guard !demoMode else { return }
-            let pattern: HapticService.Pattern = bytes[1] == 1 ? .error : bytes[1] == 2 ? .series : bytes[1] == 3 ? .rest : .success
-            Task { @MainActor in HapticService.shared.play(pattern) }
+            feedback.receive(bytes, enabled: !demoMode && powered != false)
         } else if characteristic.uuid == Self.diagnosticID {
             guard bytes.count == 18, bytes[0] == 1 else { return }
             let now = Date.now
@@ -166,7 +190,12 @@ final class BluetoothManager: NSObject, ObservableObject, CBCentralManagerDelega
                 guard (1...10).contains(bytes[6]), (1...100).contains(bytes[7]), (5...300).contains(rest), bytes[4] <= bytes[6] else { return }
                 configuration = [Int(bytes[6]), Int(bytes[7]), rest, Int(bytes[10]) | Int(bytes[11]) << 8, Int(bytes[5])]
             }
-            latestState = (Int(bytes[2]) | (Int(bytes[3]) << 8), Int(bytes[4]), phase)
+            let repetition = Int(bytes[2]) | (Int(bytes[3]) << 8)
+            if phase == .paused || phase == .idle || bytes[5] & 1 != 0 {
+                feedback.suspend(); HapticService.shared.cancel()
+            }
+            feedback.state(repetition: repetition, set: Int(bytes[4]), phase: phase, enabled: !demoMode && powered != false)
+            latestState = (repetition, Int(bytes[4]), phase)
         }
     }
 }
