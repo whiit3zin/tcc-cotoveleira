@@ -43,7 +43,7 @@ struct TrainingView: View {
     var body: some View {
         Screen("Treino") {
             if workout.demoMode {
-                Label("Modo demonstração", systemImage: "play.circle")
+                Label("Modo demonstração · SIMULADO", systemImage: "play.circle")
                     .font(.footnote).foregroundStyle(.secondary)
             }
             if workout.phase == .resting {

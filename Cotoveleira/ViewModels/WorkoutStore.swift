@@ -14,9 +14,20 @@ import UIKit
     var isRunning: Bool { phase == .active || phase == .paused || phase == .resting }
     @Published private(set) var startedAt: Date?
     @Published var demoMode = false {
-        didSet { stopTimer(); phase = .idle; repetition = 0; total = 0; startedAt = nil }
+        didSet { stopTimer(); phase = .idle; repetition = 0; total = 0; startedAt = nil; clearDemoSamples() }
     }
     @Published var demoPowered = true
+    @Published private(set) var demoSamples: [SensorSample] = []
+
+    func clearDemoSamples() { demoSamples = [] }
+
+    func recordDemoOrientation(_ degrees: Double) {
+        guard demoMode, demoPowered else { return }
+        let previous = demoSamples.last?.filtered ?? degrees
+        demoSamples.append(SensorSample(date: .now, raw: degrees, filtered: previous + 0.35 * (degrees - previous)))
+        if demoSamples.count > SensorSample.historyLimit { demoSamples.removeFirst() }
+    }
+
     func simulateError() { guard demoMode && demoPowered, phase == .active else { return }; HapticService.shared.play(.error) }
 
     @Published var targetSets = (UserDefaults.standard.object(forKey: "sets") == nil ? 3 : UserDefaults.standard.integer(forKey: "sets")) {
@@ -113,9 +124,15 @@ import UIKit
         if ProcessInfo.processInfo.arguments.contains("--ui-testing") { return }
         #endif
         timer = Task { [weak self] in
+            let cycle: [Double] = [-20, 5, 30, 55, 70, 55, 15, -20]
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(2))
-                if Task.isCancelled { return }
+                for degrees in cycle {
+                    do { try await Task.sleep(for: .milliseconds(250)) } catch { return }
+                    guard let self, !Task.isCancelled, self.demoMode, self.demoPowered,
+                          self.phase == .active else { return }
+                    self.recordDemoOrientation(degrees)
+                }
+                // One scripted repetition at the end of each two-second cycle.
                 self?.addRepetition()
             }
         }
