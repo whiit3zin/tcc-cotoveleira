@@ -16,14 +16,22 @@ import CoreBluetooth
     @Published private(set) var rssi: Int?
     @Published private(set) var samples: [SensorSample] = []
     @Published private(set) var events: [String] = []
-    @Published private(set) var diagnostic: [UInt8] = []
+    @Published private(set) var diagnostic: DiagnosticTelemetry?
     @Published private(set) var lastUpdate: Date?
-    @Published private(set) var minimum: Int?
-    @Published private(set) var maximum: Int?
+    @Published private(set) var minimum: Double?
+    @Published private(set) var maximum: Double?
     @Published private(set) var frequency: Double?
     @Published private(set) var configuration: [Int] = []
     var demoMode = false {
-        didSet { if oldValue != demoMode { feedback.reset(); HapticService.shared.cancel() } }
+        didSet {
+            guard oldValue != demoMode else { return }
+            if demoMode && wantsDiagnostics {
+                // Close the real stream on entry; simulation sends no commands.
+                wantsDiagnostics = false
+                if command != nil, peripheral?.state == .connected { enqueue(10, value: 0) }
+            }
+            feedback.reset(); HapticService.shared.cancel()
+        }
     }
     var wantsDiagnostics = false
     private lazy var feedback = WorkoutFeedbackCoordinator(
@@ -32,7 +40,11 @@ import CoreBluetooth
     )
     private var writes: [Data] = []
     private var writing = false
-    func clearDiagnostics() { samples = []; events = []; minimum = nil; maximum = nil; frequency = nil }
+    func clearDiagnostics() { events = []; clearTelemetry() }
+    private func clearTelemetry() {
+        samples = []; diagnostic = nil; lastUpdate = nil; frequency = nil
+        resetExtrema()
+    }
     func resetExtrema() { minimum = nil; maximum = nil }
     func diagnostics(_ enabled: Bool) { wantsDiagnostics = enabled; send(10, value: enabled ? 1 : 0) }
     func log(_ message: String) {
@@ -64,7 +76,7 @@ import CoreBluetooth
     private func clearConnection() {
         ready = false; powered = nil; battery = nil; command = nil; latestState = nil
         feedback.reset(); HapticService.shared.cancel()
-        writes = []; writing = false; diagnostic = []; lastUpdate = nil; samples = []
+        writes = []; writing = false; clearTelemetry()
     }
     func peripheral(_ peripheral: CBPeripheral, didReadRSSI RSSI: NSNumber, error: Error?) {
         if error == nil { rssi = RSSI.intValue }
@@ -95,7 +107,12 @@ import CoreBluetooth
         if code == 2 || code == 4 || (code == 9 && value == 0) {
             feedback.suspend(); HapticService.shared.cancel()
         } else if code == 1 || code == 3 || code == 5 { feedback.resume(); HapticService.shared.prepare() }
-        writes.append(Data([1, code, UInt8(value & 255), UInt8(value >> 8)])); drain()
+        enqueue(code, value: value)
+    }
+
+    private func enqueue(_ code: UInt8, value: UInt16) {
+        writes.append(Data([1, code, UInt8(value & 255), UInt8(value >> 8)]))
+        drain()
     }
 
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
@@ -171,15 +188,28 @@ import CoreBluetooth
         } else if characteristic.uuid == Self.eventID {
             feedback.receive(bytes, enabled: !demoMode && powered != false)
         } else if characteristic.uuid == Self.diagnosticID {
-            guard bytes.count == 18, bytes[0] == 1 else { return }
+            guard !demoMode, let telemetry = DiagnosticTelemetry(data: bytes) else { return }
+            if diagnostic?.version != telemetry.version {
+                clearTelemetry()
+                log("Diagnóstico BLE v\(telemetry.version)")
+            }
             let now = Date.now
             if let lastUpdate { frequency = 1 / max(0.001, now.timeIntervalSince(lastUpdate)) }
-            lastUpdate = now; diagnostic = Array(bytes)
-            let raw = Int(bytes[1]) | Int(bytes[2]) << 8
-            let filtered = Int(bytes[3]) | Int(bytes[4]) << 8
-            minimum = min(minimum ?? raw, raw); maximum = max(maximum ?? raw, raw)
-            samples.append(SensorSample(date: now, raw: raw, filtered: filtered))
-            if samples.count > 300 { samples.removeFirst(samples.count - 300) }
+            if case .imu(let imu) = telemetry.signal {
+                let previousHealth: DiagnosticTelemetry.IMUHealth?
+                if case .imu(let previous)? = diagnostic?.signal { previousHealth = previous.health }
+                else { previousHealth = nil }
+                if previousHealth != imu.health {
+                    log("Integridade MPU-6050: IMU=\(imu.health.contains(.detected)), orientação=\(imu.health.contains(.orientationValid)), erro I2C=\(imu.health.contains(.i2cError))")
+                }
+            }
+            lastUpdate = now; diagnostic = telemetry
+            if let sample = telemetry.sample(at: now) {
+                minimum = min(minimum ?? sample.raw, sample.raw)
+                maximum = max(maximum ?? sample.raw, sample.raw)
+                samples.append(sample)
+                if samples.count > SensorSample.historyLimit { samples.removeFirst() }
+            }
             peripheral.readRSSI()
         } else if characteristic.uuid == Self.batteryID {
             if bytes.count == 1, bytes[0] <= 100 { battery = Int(bytes[0]) }
@@ -198,11 +228,4 @@ import CoreBluetooth
             latestState = (repetition, Int(bytes[4]), phase)
         }
     }
-}
-
-struct SensorSample: Identifiable {
-    let id = UUID()
-    let date: Date
-    let raw: Int
-    let filtered: Int
 }

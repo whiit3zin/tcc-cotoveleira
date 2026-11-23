@@ -7,6 +7,7 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 FW = (ROOT / 'CotoveleiraESP32-Serial.ino').read_text(encoding='utf-8')
 APP = (ROOT / 'Cotoveleira/Services/Bluetooth/BluetoothManager.swift').read_text(encoding='utf-8')
+TELEMETRY = (ROOT / 'Cotoveleira/Services/Bluetooth/DiagnosticTelemetry.swift').read_text(encoding='utf-8')
 FEEDBACK = (ROOT / 'Cotoveleira/Services/WorkoutFeedback.swift').read_text(encoding='utf-8')
 
 class IntegrationContract(unittest.TestCase):
@@ -15,6 +16,7 @@ class IntegrationContract(unittest.TestCase):
         self.assertEqual(set(re.findall(pattern, FW)), set(re.findall(pattern, APP)))
         self.assertEqual(len(set(re.findall(pattern, FW))), 7)
 
+    # Transitional checks for the flex-sensor sketch still in production.
     def test_hardware_and_power_gates(self):
         for token in ['PIN_FLEX = 34', 'PIN_BAT = 35', 'Serial.begin(115200)',
                       'if (powered) processFlex(now)', 'powered && diagnostics && connected',
@@ -23,7 +25,8 @@ class IntegrationContract(unittest.TestCase):
         self.assertNotRegex(FW.lower(), r'oled|buzzer|ledc|ssd1306|u8g2')
 
     def test_packet_sizes_and_filters(self):
-        self.assertIn('bytes.count == 18', APP)
+        self.assertIn('bytes.count == 18', TELEMETRY)
+        self.assertIn('DiagnosticTelemetry(data: bytes)', APP)
         self.assertIn('bytes.count == 7', FEEDBACK)
         self.assertIn('event.sequence &- sequence', FEEDBACK)
         for token in ['int samples[40]', 'i = 10; i < 30', '0.15f', '>= 30',

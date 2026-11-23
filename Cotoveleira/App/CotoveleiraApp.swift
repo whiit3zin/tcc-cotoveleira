@@ -27,7 +27,7 @@ import SwiftData
                 .onReceive(workout.$repetition) { repetition in
                     LiveWorkoutService.shared.update(repetitions: repetition, set: workout.set, phase: workout.phase, demo: workout.demoMode)
                 }
-                .onChange(of: workout.demoMode) { _, demo in
+                .onChange(of: workout.demoMode, initial: true) { _, demo in
                     bluetooth.demoMode = demo
                 }
                 .onReceive(bluetooth.$latestState) { state in

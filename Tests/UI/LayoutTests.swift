@@ -18,13 +18,16 @@ final class LayoutTests: XCTestCase {
     private func reveal(_ element: XCUIElement) {
         let bar = app.tabBars.firstMatch
         for _ in 0..<8 {
+            // SwiftUI Form materializes rows as they scroll into view.
+            guard element.exists else { app.swipeUp(); continue }
             let top = app.navigationBars.firstMatch.frame.maxY
             let bottom = bar.frame.minY - 8
             let frame = element.frame
             if element.isHittable && frame.minY >= top && frame.maxY <= bottom { return }
-            if frame.minY < top && element.exists { app.swipeDown() }
+            if frame.minY < top { app.swipeDown() }
             else { app.swipeUp() }
         }
+        XCTAssertTrue(element.exists)
         XCTAssertTrue(element.isHittable)
         XCTAssertLessThanOrEqual(element.frame.maxY, bar.frame.minY - 8)
     }
@@ -73,11 +76,13 @@ final class LayoutTests: XCTestCase {
                 screenshot(prefix + "-historico-parcial")
                 bar.buttons["Dispositivo"].tap(); screenshot(prefix + "-dispositivo-demo")
                 bar.buttons["Ajustes"].tap(); screenshot(prefix + "-ajustes")
-                let version = app.staticTexts["settings.version"]
+                let version = app.descendants(matching: .any)["settings.version"]
                 reveal(version)
                 for _ in 0..<5 { version.tap() }
                 let toggle = app.switches["Modo demonstração"]
-                reveal(toggle); toggle.tap()
+                XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+                XCTAssertTrue(app.staticTexts["SIMULADO — orientação e treino"].exists)
+                toggle.tap()
                 app.buttons["Concluído"].tap()
                 bar.buttons["Dispositivo"].tap(); screenshot(prefix + "-dispositivo-sem-conexao")
                 app.terminate()
