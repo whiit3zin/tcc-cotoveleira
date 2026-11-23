@@ -76,7 +76,7 @@ final class LayoutTests: XCTestCase {
                 screenshot(prefix + "-historico-parcial")
                 bar.buttons["Dispositivo"].tap(); screenshot(prefix + "-dispositivo-demo")
                 bar.buttons["Ajustes"].tap(); screenshot(prefix + "-ajustes")
-                let version = app.staticTexts["settings.version"]
+                let version = app.descendants(matching: .any)["settings.version"]
                 reveal(version)
                 for _ in 0..<5 { version.tap() }
                 let toggle = app.switches["Modo demonstração"]
